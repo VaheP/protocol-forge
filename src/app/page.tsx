@@ -1,30 +1,15 @@
 import Link from "next/link";
 import {
   Plus, Brain, BookOpen, MessageSquare, Layers, Shield, Check,
-  ArrowRight, ChevronRight, FlaskConical, Sparkles
+  ChevronRight, Sparkles
 } from "lucide-react";
+import { RecentProjects } from "@/components/RecentProjects";
 
 function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={`font-mono-design text-[10.5px] uppercase tracking-[0.14em] text-slate-500 ${className ?? ""}`}>
       {children}
     </div>
-  );
-}
-
-function Badge({ tone = "neutral", children, icon }: { tone?: string; children: React.ReactNode; icon?: React.ReactNode }) {
-  const tones: Record<string, string> = {
-    neutral: "bg-slate-100 text-slate-700 ring-slate-200",
-    blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    violet: "bg-violet-50 text-violet-700 ring-violet-200",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    amber: "bg-amber-50 text-amber-800 ring-amber-200",
-    red: "bg-rose-50 text-rose-700 ring-rose-200",
-  };
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset whitespace-nowrap ${tones[tone] ?? tones.neutral}`}>
-      {icon}{children}
-    </span>
   );
 }
 
@@ -37,20 +22,6 @@ const WORKFLOW_STEPS = [
   { label: "Skill Memory" },
 ];
 
-const RECENT = [
-  {
-    id: "p1", title: "Aptamer-FET CRP biosensor — whole-blood validation", domain: "Diagnostics",
-    novelty: "similar", status: "Plan ready", updated: "2 h ago", applied: 1,
-  },
-  {
-    id: "p2", title: "HeLa cryopreservation: DMSO + trehalose blend", domain: "Cell Biology",
-    novelty: "not-found", status: "Clarify", updated: "yesterday", applied: 1,
-  },
-  {
-    id: "p3", title: "CO₂ → acetate bioelectrochemical reactor (mixed culture)", domain: "Bioelectrochem.",
-    novelty: "similar", status: "Lit QC", updated: "3 d ago", applied: 0,
-  },
-];
 
 const PILLARS = [
   {
@@ -275,48 +246,7 @@ export default function HomePage() {
 
       {/* Recent plans + Safety */}
       <div className="mt-8 grid grid-cols-12 gap-6">
-        <div className="col-span-12 lg:col-span-8 rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow overflow-hidden">
-          <div className="flex items-center justify-between p-5 pb-3">
-            <div>
-              <SectionLabel>Recent plans</SectionLabel>
-              <div className="mt-0.5 text-[15px] font-semibold text-slate-900">Across your lab</div>
-            </div>
-            <Link
-              href="/projects"
-              className="inline-flex items-center gap-1.5 text-[12px] text-blue-700 hover:text-blue-800 hover:underline underline-offset-2"
-            >
-              View all <ArrowRight size={13} />
-            </Link>
-          </div>
-          <div className="divide-y divide-[var(--line-2)]">
-            {RECENT.map((p) => (
-              <div key={p.id} className="px-5 py-3.5 hover:bg-slate-50/70 cursor-pointer flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-slate-50 ring-1 ring-slate-200 grid place-items-center text-slate-500 shrink-0">
-                  <FlaskConical size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] font-medium text-slate-900 truncate">{p.title}</div>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <Badge tone="neutral">{p.domain}</Badge>
-                    <Badge tone={p.novelty === "not-found" ? "green" : "amber"}>
-                      {p.novelty === "not-found" ? "Novel" : "Similar work"}
-                    </Badge>
-                    {p.applied > 0 && (
-                      <Badge tone="violet" icon={<Brain size={10} />}>
-                        {p.applied} applied rule{p.applied > 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right shrink-0 hidden sm:block">
-                  <div className="text-[12px] text-slate-500">{p.status}</div>
-                  <div className="font-mono-design text-[10.5px] text-slate-400 uppercase tracking-wider mt-0.5">{p.updated}</div>
-                </div>
-                <ChevronRight size={14} className="text-slate-300 shrink-0" />
-              </div>
-            ))}
-          </div>
-        </div>
+        <RecentProjects />
 
         <div className="col-span-12 lg:col-span-4 rounded-2xl bg-amber-50/30 ring-1 ring-amber-100 soft-shadow p-5">
           <div className="flex items-center gap-2">

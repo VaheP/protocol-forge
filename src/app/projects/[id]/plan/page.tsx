@@ -91,6 +91,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const [globalSkillUpdatedAt, setGlobalSkillUpdatedAt] = useState<string | null>(null);
   const [regeneratingPlan, setRegeneratingPlan] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
+  const [openRefs, setOpenRefs] = useState<Record<number, boolean>>({});
 
   const effectivePlanId = payload?.plan?.id ?? planId ?? "";
   const planMeta = payload?.plan ?? null;
@@ -459,10 +460,50 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                 <div className="text-xs font-medium text-muted-foreground">References</div>
                 {refs.map((r: any, idx: number) => (
                   <div key={idx} className="rounded-md border bg-background p-3 text-sm">
-                    <div className="font-medium">{r.title ?? "Reference"}</div>
-                    {r.snippet ? <div className="mt-2 text-xs text-muted-foreground">{r.snippet}</div> : null}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={
+                            openRefs[idx]
+                              ? "font-medium leading-snug break-words whitespace-pre-wrap"
+                              : "font-medium leading-snug break-words [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden"
+                          }
+                        >
+                          {r.title ?? "Reference"}
+                        </div>
+                        {r.snippet ? (
+                          <div
+                            className={
+                              openRefs[idx]
+                                ? "mt-2 text-xs text-muted-foreground break-words whitespace-pre-wrap"
+                                : "mt-2 text-xs text-muted-foreground break-words [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] overflow-hidden"
+                            }
+                          >
+                            {r.snippet}
+                          </div>
+                        ) : null}
+                      </div>
+                      {(r?.title && String(r.title).length > 140) || (r?.snippet && String(r.snippet).length > 240) ? (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-md border bg-background px-2 py-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => setOpenRefs((s) => ({ ...s, [idx]: !s[idx] }))}
+                          aria-label={openRefs[idx] ? "Collapse reference" : "Expand reference"}
+                        >
+                          {openRefs[idx] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                      ) : null}
+                    </div>
                     {r.url ? (
-                      <a className="mt-2 inline-block text-xs underline" href={r.url} target="_blank" rel="noreferrer">{r.url}</a>
+                      <a
+                        className="mt-2 block max-w-full truncate text-xs underline underline-offset-2"
+                        href={r.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={r.url}
+                      >
+                        {r.url}
+                      </a>
                     ) : null}
                   </div>
                 ))}

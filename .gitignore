@@ -43,3 +43,6 @@ next-env.d.ts
 # Misc
 .vercel
 .turbo
+
+# Mock store persistence
+.pf-store.json

@@ -6,7 +6,8 @@ type SchemaName =
   | "literature_qc"
   | "draft_protocol_materials"
   | "final_plan"
-  | "distill_skill_rule";
+  | "distill_skill_rule"
+  | "plan_skill_md";
 
 type GenerateJSONResult<T> = { json: T; provider: string };
 
@@ -19,6 +20,25 @@ function safeJsonParse<T>(raw: string): T {
     return JSON.parse(slice) as T;
   }
   return JSON.parse(raw) as T;
+}
+
+function buildJsonRepairPrompt(schemaName: SchemaName, originalPrompt: string, raw: string) {
+  return `
+You are a JSON repair tool.
+
+The following text was supposed to be STRICT JSON for schema "${schemaName}", but it is invalid.
+
+Your task:
+- Output ONLY valid JSON.
+- No markdown, no code fences, no commentary.
+- Preserve the original meaning as much as possible.
+
+Original task prompt:
+${originalPrompt}
+
+Invalid output:
+${raw}
+`.trim();
 }
 
 function guessMockCase(hypothesis: string) {
@@ -289,6 +309,11 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
     return { json: json as any as T, provider: "mock" };
   }
 
+  if (schemaName === "plan_skill_md") {
+    const json = { skill_md: "# Plan Skill Memory\n\n## Key Corrections\n- (mock) No LLM configured; save real comments to generate skill memory.\n\n## Patterns to Apply Next Time\n- Add explicit controls.\n- Validate across multiple timepoints.\n\n## Watch Out For\n- Single-matrix validation without controls." };
+    return { json: json as any as T, provider: "mock" };
+  }
+
   return { json: safeJsonParse<T>(prompt) as any as T, provider: "mock" };
 }
 
@@ -339,6 +364,7 @@ async function groqChat(prompt: string): Promise<string> {
 async function openRouterChat(prompt: string): Promise<string> {
   const apiKey = env("OPENROUTER_API_KEY");
   if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
+  const model = env("OPENROUTER_MODEL") ?? "openai/gpt-4o-mini";
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -346,7 +372,7 @@ async function openRouterChat(prompt: string): Promise<string> {
       Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2
     })
@@ -354,6 +380,31 @@ async function openRouterChat(prompt: string): Promise<string> {
   if (!res.ok) throw new Error(`OpenRouter error: ${res.status}`);
   const json = await res.json();
   return json.choices?.[0]?.message?.content ?? "";
+}
+
+function preferredProviderName(): string | null {
+  const v = env("USE_PROVIDER");
+  if (!v) return null;
+  const p = v.trim().toLowerCase();
+  if (!p) return null;
+  return p;
+}
+
+function pickProvider(
+  order: Array<{ name: string; enabled: boolean; run: (p: string) => Promise<string> }>
+): { name: string; enabled: boolean; run: (p: string) => Promise<string> } | null {
+  const pref = preferredProviderName();
+  if (pref) {
+    const exact = order.find((p) => p.name === pref);
+    if (!exact) {
+      throw new Error(`USE_PROVIDER=${pref} is not supported. Use one of: ${order.map((p) => p.name).join(", ")}`);
+    }
+    if (!exact.enabled) {
+      throw new Error(`USE_PROVIDER=${pref} selected, but its API key/base URL is missing.`);
+    }
+    return exact;
+  }
+  return order.find((p) => p.enabled) ?? null;
 }
 
 async function ollamaChat(prompt: string): Promise<string> {
@@ -373,6 +424,20 @@ async function ollamaChat(prompt: string): Promise<string> {
   return json.response ?? "";
 }
 
+export async function generateText(prompt: string): Promise<{ text: string; provider: string }> {
+  if (!hasAnyLLMKey()) return { text: "# Plan Skill Memory\n\n(No LLM configured — add an API key to generate real skill memory.)", provider: "mock" };
+  const order = [
+    { name: "openai", enabled: Boolean(env("OPENAI_API_KEY")), run: openAIChat },
+    { name: "groq", enabled: Boolean(env("GROQ_API_KEY")), run: groqChat },
+    { name: "openrouter", enabled: Boolean(env("OPENROUTER_API_KEY")), run: openRouterChat },
+    { name: "ollama", enabled: Boolean(env("OLLAMA_BASE_URL")), run: ollamaChat }
+  ];
+  const provider = pickProvider(order);
+  if (!provider) return { text: "# Plan Skill Memory\n\n(No LLM configured.)", provider: "mock" };
+  const text = await provider.run(prompt);
+  return { text, provider: provider.name };
+}
+
 export async function generateJSON<T>(args: { schemaName: SchemaName; prompt: string; hypothesisForRouting: string }): Promise<GenerateJSONResult<T>> {
   if (!hasAnyLLMKey()) return mockGenerate<T>(args.schemaName, args.prompt, args.hypothesisForRouting);
 
@@ -383,13 +448,20 @@ export async function generateJSON<T>(args: { schemaName: SchemaName; prompt: st
     { name: "ollama", enabled: Boolean(env("OLLAMA_BASE_URL")), run: ollamaChat }
   ];
 
-  const provider = order.find((p) => p.enabled);
+  const provider = pickProvider(order);
   if (!provider) return mockGenerate<T>(args.schemaName, args.prompt, args.hypothesisForRouting);
 
   try {
     const raw = await provider.run(args.prompt);
-    const json = safeJsonParse<T>(raw);
-    return { json, provider: provider.name };
+    try {
+      const json = safeJsonParse<T>(raw);
+      return { json, provider: provider.name };
+    } catch (parseErr: any) {
+      // One-shot repair attempt for models that occasionally emit invalid JSON.
+      const repairedRaw = await provider.run(buildJsonRepairPrompt(args.schemaName, args.prompt, raw));
+      const json = safeJsonParse<T>(repairedRaw);
+      return { json, provider: provider.name };
+    }
   } catch (e) {
     // In "real mode" (keys present), surface the error rather than silently returning mock.
     // This prevents confusing "mock" outputs when you expect real provider calls.

@@ -4,6 +4,7 @@ import { dbGetClarifications, dbGetProject, dbInsertLiteratureResults, dbUpsertL
 import { prompts } from "@/lib/prompts";
 import { generateJSON } from "@/lib/llm";
 import { tavilySearch } from "@/lib/tavily";
+import { extractRelevantSections } from "@/lib/extraction";
 
 const BodySchema = z.object({
   project_id: z.string().min(10)
@@ -16,16 +17,17 @@ export async function POST(req: Request) {
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const parsed = project.parsed_json ?? {};
-    const queries: string[] = (parsed.search_queries ?? []).filter(Boolean).slice(0, 5);
+    const queries: string[] = (parsed.search_queries ?? []).filter(Boolean).slice(0, 3);
 
-    // If no queries, fall back to a generic hypothesis query
     const effective = queries.length ? queries : [project.original_hypothesis];
 
-    const all = [];
+    const raw = [];
     for (const q of effective) {
-      const results = await tavilySearch(q, { maxResults: 4 });
-      for (const r of results) all.push({ query: q, ...r });
+      const results = await tavilySearch(q, { maxResults: 3 });
+      for (const r of results) raw.push({ query: q, ...r });
     }
+
+    const all = await extractRelevantSections(raw);
 
     await dbInsertLiteratureResults(
       project.id,
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
       project.original_hypothesis +
         "\n\nClarifications:\n" +
         JSON.stringify(clarifications.map((c) => ({ q: c.question_text, a: c.selected_answer }))),
-      JSON.stringify(all)
+      all
     );
 
     const qc = await generateJSON<any>({

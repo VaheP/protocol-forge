@@ -117,3 +117,24 @@ values
   )
 on conflict do nothing;
 
+-- Migration: add skill_md to plans, char offsets + is_global to comments
+alter table plans add column if not exists skill_md text;
+alter table plans add column if not exists skill_md_updated_at timestamp with time zone;
+alter table plans add column if not exists generated_with_skill_md_at timestamp with time zone;
+alter table plans add column if not exists generated_with_global_skill_at timestamp with time zone;
+alter table comments add column if not exists char_start int;
+alter table comments add column if not exists char_end int;
+alter table comments add column if not exists is_global boolean default false;
+
+-- Backfill: treat existing skill_md rows as "updated at creation time"
+update plans
+set skill_md_updated_at = coalesce(skill_md_updated_at, created_at)
+where skill_md is not null;
+
+-- Backfill: for old plans, assume they were generated with whatever skills existed at creation time
+update plans
+set
+  generated_with_global_skill_at = coalesce(generated_with_global_skill_at, created_at),
+  generated_with_skill_md_at = coalesce(generated_with_skill_md_at, skill_md_updated_at)
+where true;
+

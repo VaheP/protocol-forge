@@ -1,3 +1,38 @@
+function trimTavilyResults(results: any[]): { title: string; url: string; snippet: string; score?: number }[] {
+  return results.map((r) => ({
+    title: String(r.title ?? "").slice(0, 120),
+    url: String(r.url ?? ""),
+    // content is already extracted abstract/methodology by the small model — allow more through
+    snippet: String(r.snippet ?? r.content ?? "").slice(0, 800),
+    ...(r.score != null ? { score: r.score } : {}),
+  }));
+}
+
+function trimPricingContext(ctx: Record<string, { query: string; results: any[]; quotes?: any[] }>) {
+  return Object.fromEntries(
+    Object.entries(ctx).map(([item, { query, results, quotes }]) => [
+      item,
+      {
+        query,
+        results: results.slice(0, 2).map((r) => ({
+          title: String(r.title ?? "").slice(0, 120),
+          url: String(r.url ?? ""),
+          snippet: String(r.snippet ?? r.content ?? "").slice(0, 200),
+        })),
+        quotes: (quotes ?? []).slice(0, 3).map((q) => ({
+          vendor: q.vendor ?? null,
+          price: q.price ?? null,
+          currency: q.currency ?? null,
+          pack_size: q.pack_size ?? null,
+          url: q.url ?? null,
+          retrieved_at: q.retrieved_at ?? null,
+          confidence: q.confidence ?? null
+        }))
+      },
+    ])
+  );
+}
+
 export const prompts = {
   parseHypothesisAndQueries: (hypothesis: string) => `
 You are a scientific search-query planner.
@@ -71,7 +106,7 @@ Parsed fields (JSON):
 ${JSON.stringify(input.parsed ?? null)}
 `.trim(),
 
-  literatureQC: (hypothesis: string, tavilyResultsJson: string) => `
+  literatureQC: (hypothesis: string, tavilyResults: any[]) => `
 You are a scientific literature quality-control assistant.
 Evaluate the novelty of the user’s hypothesis against the provided search results.
 
@@ -101,7 +136,7 @@ Hypothesis:
 """${hypothesis}"""
 
 Search results (JSON):
-${tavilyResultsJson}
+${JSON.stringify(trimTavilyResults(tavilyResults))}
 `.trim(),
 
   draftProtocolAndMaterials: (input: {
@@ -111,6 +146,7 @@ ${tavilyResultsJson}
     references: any[];
     clarifications: { question_text: string; selected_answer: string }[];
     relevantRules: { id: string; section: string | null; rule_text: string | null; keywords: string[] | null }[];
+    planSkillMd?: string | null;
   }) => `
 You are a senior scientific operations planner.
 Draft a practical step-by-step experimental methodology grounded in real published protocols where possible.
@@ -153,34 +189,24 @@ ${JSON.stringify(input.clarifications)}
 
 Relevant skill rules (JSON):
 ${JSON.stringify(input.relevantRules)}
+
+Plan-specific skill memory (SKILL.md, markdown):
+${input.planSkillMd ? input.planSkillMd : "(none)"}
 `.trim(),
 
   finalPlanAssembly: (input: {
-    hypothesis: string;
-    parsedJson: any;
-    literatureQC: any;
-    references: any[];
-    relevantRules: any[];
     draftProtocolSteps: any[];
     requiredMaterials: any[];
     pricingContext: any;
   }) => `
 You are a senior PI and scientific operations planner.
-Generate the final experiment plan as a strict JSON object.
+Expand the draft protocol and materials below into a complete final experiment plan.
 
 Rules:
-- Use the provided draft protocol as the basis.
-- Use only pricing_context to fill supplier, catalog_number, and price.
-- Do not invent catalog numbers.
-- Do not invent prices.
-- If catalog number or price is missing from pricing_context, use:
-  catalog_number: 'supplier lookup required'
-  price: null
-- Include a realistic budget, but only with grounded or clearly estimated line items.
-- Include timeline, dependencies, validation approach, controls, risks, and PI review warning.
-- Apply relevant skill rules only when appropriate.
-- Include applied skill rules in applied_feedback.
-- The plan must be operationally useful but must state that it requires review by a qualified scientist before execution.
+- Use the draft protocol steps as-is; expand descriptions where useful but do not contradict them.
+- Use only pricing_context to fill supplier, catalog_number, and price fields.
+- Do not invent catalog numbers or prices. Use null / "supplier lookup required" when absent.
+- Include realistic budget, timeline, validation approach, controls, and risks.
 
 Return strict JSON:
 {
@@ -213,29 +239,47 @@ Return strict JSON:
   "applied_feedback": [{ "rule_id": "", "applied_change": "" }]
 }
 
-Original hypothesis:
-"""${input.hypothesis}"""
-
-Parsed hypothesis (JSON):
-${JSON.stringify(input.parsedJson)}
-
-Literature QC (JSON):
-${JSON.stringify(input.literatureQC)}
-
-Selected references (JSON):
-${JSON.stringify(input.references)}
-
-Relevant skill rules (JSON):
-${JSON.stringify(input.relevantRules)}
-
 Draft protocol steps (JSON):
 ${JSON.stringify(input.draftProtocolSteps)}
 
 Required materials (JSON):
 ${JSON.stringify(input.requiredMaterials)}
 
-pricing_context (JSON):
-${JSON.stringify(input.pricingContext)}
+Pricing context (supplier lookup results, JSON):
+${JSON.stringify(trimPricingContext(input.pricingContext))}
+`.trim(),
+
+  generatePlanSkillMd: (input: {
+    comments: { section: string | null; selected_text: string | null; comment_text: string | null; severity: string | null; is_global: boolean }[];
+    domain: string | null;
+    experiment_type: string | null;
+  }) => `
+You are a scientific operations expert distilling expert annotations into a structured skill document.
+Given a list of comments left by a scientist on an experiment plan, write a SKILL.md document for this specific plan.
+
+Format:
+# Plan Skill Memory
+
+## Key Corrections
+(bullet list of the most important corrections, referencing which section they apply to)
+
+## Patterns to Apply Next Time
+(bullet list of reusable lessons learned, framed as rules for future plans of this domain/type)
+
+## Watch Out For
+(bullet list of risks or oversights flagged in these comments)
+
+Rules:
+- Be concise, specific, and actionable.
+- Do not repeat the raw comment text verbatim; distill into lessons.
+- Group by section where it makes sense.
+- If is_global=true on a comment, mark it with "(→ global rule)" to indicate it applies beyond this plan.
+
+Domain: ${input.domain ?? "Unknown"}
+Experiment type: ${input.experiment_type ?? "Unknown"}
+
+Comments (JSON):
+${JSON.stringify(input.comments)}
 `.trim(),
 
   distillSkillRule: (input: {

@@ -11,7 +11,10 @@ const BodySchema = z.object({
   comment_text: z.string().min(1),
   feedback_type: z.string().min(1),
   severity: z.enum(["Low", "Medium", "High"]).or(z.string()),
-  reusable: z.boolean().default(true)
+  reusable: z.boolean().default(true),
+  is_global: z.boolean().default(false),
+  char_start: z.number().nullable().optional(),
+  char_end: z.number().nullable().optional()
 });
 
 export async function POST(req: Request) {
@@ -27,10 +30,13 @@ export async function POST(req: Request) {
       comment_text: body.comment_text,
       feedback_type: body.feedback_type,
       severity: body.severity,
-      reusable: body.reusable
+      reusable: body.is_global || body.reusable,
+      is_global: body.is_global,
+      char_start: body.char_start ?? null,
+      char_end: body.char_end ?? null
     });
 
-    if (!body.reusable) return NextResponse.json({ comment_id: comment.id, skill_rule: null });
+    if (!body.is_global) return NextResponse.json({ comment_id: comment.id, comment, skill_rule: null });
 
     // Best-effort pull project domain/type for better distillation
     const project = await dbGetProject(plan.project_id);
@@ -63,7 +69,7 @@ export async function POST(req: Request) {
       active: true
     });
 
-    return NextResponse.json({ comment_id: comment.id, skill_rule: skillRule });
+    return NextResponse.json({ comment_id: comment.id, comment, skill_rule: skillRule });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Failed to save comment", message: err?.message ?? String(err) },

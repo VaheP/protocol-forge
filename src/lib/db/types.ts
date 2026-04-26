@@ -46,6 +46,10 @@ export type Plan = {
   project_id: UUID;
   plan_json: any;
   model_used: string | null;
+  skill_md: string | null;
+  skill_md_updated_at: string | null;
+  generated_with_skill_md_at: string | null;
+  generated_with_global_skill_at: string | null;
   created_at: string;
 };
 
@@ -58,6 +62,9 @@ export type Comment = {
   feedback_type: string | null;
   severity: string | null;
   reusable: boolean;
+  is_global: boolean;
+  char_start: number | null;
+  char_end: number | null;
   created_at: string;
 };
 

@@ -2,37 +2,30 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Plus, ArrowRight } from "lucide-react";
+import { Brain, Plus } from "lucide-react";
 
-const SKILL_RULES = [
-  {
-    id: "rule-001", n: 1, title: "Whole-blood biosensor validation",
-    domain: "Diagnostics", expType: "Whole-blood electrochemical biosensor", section: "Validation",
-    rule: "For whole-blood electrochemical biosensors, validation must include whole-blood matrix testing and anti-fouling controls, not serum-only validation.",
-    keywords: ["whole blood", "biosensor", "electrochemical", "anti-fouling"],
-    appliedCount: 3, createdAt: "Apr 12, 2026",
-  },
-  {
-    id: "rule-002", n: 2, title: "Cryopreservation recovery timepoints",
-    domain: "Cell Biology", expType: "Cryopreservation", section: "Validation",
-    rule: "Cryopreservation experiments should measure viability immediately after thaw and again after a 24-hour recovery period.",
-    keywords: ["cryopreservation", "viability", "thaw", "24-hour recovery"],
-    appliedCount: 2, createdAt: "Apr 18, 2026",
-  },
-  {
-    id: "rule-003", n: 3, title: "Mouse gut permeability quality controls",
-    domain: "Animal Study", expType: "Gut permeability", section: "Controls / Validation",
-    rule: "Mouse gut permeability studies should include randomisation, appropriate controls, animal ethics notes, and FITC-dextran dosing rationale.",
-    keywords: ["mouse", "gut permeability", "FITC-dextran", "randomisation", "ethics"],
-    appliedCount: 2, createdAt: "Apr 22, 2026",
-  },
-];
+type SkillRule = {
+  id: string;
+  domain: string | null;
+  experiment_type: string | null;
+  section: string | null;
+  rule_text: string | null;
+  keywords: string[] | null;
+  severity: string | null;
+  active: boolean;
+  created_at: string;
+};
 
 const DOMAIN_COLORS: Record<string, string> = {
-  "Diagnostics": "bg-blue-50 text-blue-700 ring-blue-200",
+  Diagnostics: "bg-blue-50 text-blue-700 ring-blue-200",
   "Cell Biology": "bg-teal-50 text-teal-700 ring-teal-200",
   "Animal Study": "bg-violet-50 text-violet-700 ring-violet-200",
+  General: "bg-slate-100 text-slate-700 ring-slate-200",
 };
+
+function domainClass(domain: string | null) {
+  return DOMAIN_COLORS[domain ?? ""] ?? "bg-slate-100 text-slate-700 ring-slate-200";
+}
 
 function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -42,53 +35,58 @@ function SectionLabel({ children, className }: { children: React.ReactNode; clas
   );
 }
 
-function Badge({ tone = "neutral", children }: { tone?: string; children: React.ReactNode }) {
-  const tones: Record<string, string> = {
-    neutral: "bg-slate-100 text-slate-700 ring-slate-200",
-    blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    violet: "bg-violet-50 text-violet-700 ring-violet-200",
-    teal: "bg-teal-50 text-teal-700 ring-teal-200",
-  };
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset whitespace-nowrap ${tones[tone] ?? tones.neutral}`}>
-      {children}
-    </span>
-  );
+function relativeDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return iso;
+  }
 }
 
-function RuleCard({ rule }: { rule: (typeof SKILL_RULES)[0] }) {
-  const domainClass = DOMAIN_COLORS[rule.domain] ?? "bg-slate-100 text-slate-700 ring-slate-200";
+function RuleCard({ rule, index }: { rule: SkillRule; index: number }) {
   return (
     <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono-design text-[10px] text-slate-400 uppercase tracking-wider">Rule {String(rule.n).padStart(3, "0")}</span>
-            <span className={`inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset ${domainClass}`}>
-              {rule.domain}
+            <span className="font-mono-design text-[10px] text-slate-400 uppercase tracking-wider">
+              Rule {String(index + 1).padStart(3, "0")}
             </span>
-            <span className="inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset bg-slate-100 text-slate-700 ring-slate-200">
-              {rule.section}
-            </span>
+            {rule.domain && (
+              <span className={`inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset ${domainClass(rule.domain)}`}>
+                {rule.domain}
+              </span>
+            )}
+            {rule.section && (
+              <span className="inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset bg-slate-100 text-slate-700 ring-slate-200">
+                {rule.section}
+              </span>
+            )}
+            {rule.severity && (
+              <span className={`inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset ${
+                rule.severity === "High" ? "bg-red-50 text-red-700 ring-red-200" :
+                rule.severity === "Medium" ? "bg-orange-50 text-orange-700 ring-orange-200" :
+                "bg-yellow-50 text-yellow-700 ring-yellow-200"
+              }`}>
+                {rule.severity}
+              </span>
+            )}
           </div>
-          <h3 className="mt-2 text-[15px] font-semibold text-slate-900">{rule.title}</h3>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-slate-700">{rule.rule}</p>
-        </div>
-        <div className="shrink-0 text-right">
-          <div className="text-[22px] font-semibold text-slate-900 leading-none">{rule.appliedCount}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">plans</div>
+          <p className="mt-2 text-[13px] leading-relaxed text-slate-700">{rule.rule_text ?? "—"}</p>
         </div>
       </div>
-      <div className="mt-3 pt-3 border-t border-[var(--line-2)] flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {rule.keywords.slice(0, 4).map((k) => (
-            <span key={k} className="inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-200">
-              {k}
-            </span>
-          ))}
+      {rule.keywords && rule.keywords.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-[var(--line-2)] flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {rule.keywords.slice(0, 5).map((k) => (
+              <span key={k} className="inline-flex items-center rounded-full px-2 py-[3px] text-[11px] font-medium ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-200">
+                {k}
+              </span>
+            ))}
+          </div>
+          <span className="font-mono-design text-[10px] text-slate-400 shrink-0">{relativeDate(rule.created_at)}</span>
         </div>
-        <span className="font-mono-design text-[10px] text-slate-400 shrink-0">{rule.createdAt}</span>
-      </div>
+      )}
     </div>
   );
 }
@@ -96,7 +94,8 @@ function RuleCard({ rule }: { rule: (typeof SKILL_RULES)[0] }) {
 export default function MemoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [memory, setMemory] = useState<string>("");
+  const [rules, setRules] = useState<SkillRule[]>([]);
+  const [memoryMd, setMemoryMd] = useState<string>("");
   const [view, setView] = useState<"cards" | "markdown">("cards");
 
   useEffect(() => {
@@ -108,7 +107,10 @@ export default function MemoryPage() {
         const res = await fetch("/api/memory");
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error ?? "Failed");
-        if (!cancelled) setMemory(json.memory_md ?? "");
+        if (!cancelled) {
+          setRules((json.rules ?? []).filter((r: SkillRule) => r.active));
+          setMemoryMd(json.memory_md ?? "");
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? String(e));
       } finally {
@@ -118,6 +120,8 @@ export default function MemoryPage() {
     load();
     return () => { cancelled = true; };
   }, []);
+
+  const activeRules = rules.filter((r) => r.active);
 
   return (
     <div className="px-8 pt-6 pb-12 max-w-[1100px] mx-auto fade-in">
@@ -144,20 +148,17 @@ export default function MemoryPage() {
             <Brain size={18} className="text-violet-700" />
           </div>
           <div>
-            <div className="text-[22px] font-semibold text-violet-900 leading-none">{SKILL_RULES.length}</div>
+            <div className="text-[22px] font-semibold text-violet-900 leading-none">
+              {loading ? "—" : activeRules.length}
+            </div>
             <div className="text-[11px] text-violet-700 mt-0.5">active rules</div>
           </div>
         </div>
         <div className="h-8 w-px bg-violet-200" />
         <div>
           <div className="text-[22px] font-semibold text-violet-900 leading-none">
-            {SKILL_RULES.reduce((s, r) => s + r.appliedCount, 0)}
+            {loading ? "—" : new Set(activeRules.map((r) => r.domain).filter(Boolean)).size}
           </div>
-          <div className="text-[11px] text-violet-700 mt-0.5">total applications</div>
-        </div>
-        <div className="h-8 w-px bg-violet-200" />
-        <div>
-          <div className="text-[22px] font-semibold text-violet-900 leading-none">3</div>
           <div className="text-[11px] text-violet-700 mt-0.5">domains covered</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -180,20 +181,34 @@ export default function MemoryPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-[13px] text-rose-700">{error}</div>
+      )}
+
       {view === "cards" ? (
-        <div className="space-y-4">
-          {SKILL_RULES.map((rule) => <RuleCard key={rule.id} rule={rule} />)}
-        </div>
+        loading ? (
+          <div className="text-[13px] text-slate-500">Loading rules…</div>
+        ) : activeRules.length === 0 ? (
+          <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-8 text-center">
+            <Brain size={24} className="text-slate-300 mx-auto mb-3" />
+            <div className="text-[15px] font-medium text-slate-700">No skill rules yet</div>
+            <div className="mt-1 text-[13px] text-slate-500">
+              Select text in any plan section and save a global comment to build skill memory.
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {activeRules.map((rule, i) => <RuleCard key={rule.id} rule={rule} index={i} />)}
+          </div>
+        )
       ) : (
         <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-6">
           <SectionLabel>SKILL.md</SectionLabel>
           {loading ? (
             <div className="mt-4 text-[13px] text-slate-500">Loading memory…</div>
-          ) : error ? (
-            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-[13px] text-rose-700">{error}</div>
           ) : (
             <pre className="mt-4 whitespace-pre-wrap font-mono-design text-[12.5px] leading-relaxed text-slate-700 bg-slate-50 rounded-xl p-5 ring-1 ring-slate-200 overflow-x-auto">
-              {memory || "No memory file found. Rules will appear here after saving expert feedback."}
+              {memoryMd || "No memory file found. Rules will appear here after saving expert feedback."}
             </pre>
           )}
         </div>

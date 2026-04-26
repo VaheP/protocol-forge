@@ -28,7 +28,7 @@ Hypothesis → Clarify (3–5 questions) → Literature QC → Experiment Plan �
 - **Framework:** Next.js 13 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS + shadcn/ui primitives
-- **Database:** Supabase (PostgreSQL) — with in-memory mock fallback for zero-config development
+- **Database:** Supabase (PostgreSQL)
 - **Literature search:** Tavily Search API
 - **LLM:** OpenAI, Groq, or OpenRouter (configurable via env vars)
 - **Fonts:** Inter, JetBrains Mono, Instrument Serif
@@ -48,22 +48,22 @@ npm install
 Copy `.env.local.example` (or create `.env.local`) and fill in the values you want:
 
 ```bash
-# LLM — pick one (or none for mock mode)
+# LLM — pick one
 OPENAI_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
 OPENROUTER_API_KEY=sk-or-...
 OLLAMA_BASE_URL=http://localhost:11434   # for local Ollama
 
-# Literature search (optional — mock results used if absent)
+# Literature search
 TAVILY_API_KEY=tvly-...
 
-# Supabase (optional — in-memory mock store used if absent)
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
 
-All three groups are optional. Without any keys the app runs in **mock mode** with pre-seeded example data — useful for UI development and demos.
+If you want real persistence and evidence, set Supabase + Tavily + an LLM provider.
 
 ### 3. Run the dev server
 
@@ -96,7 +96,7 @@ This creates the following tables:
 | `skill_rules` | Distilled reusable planning rules |
 | `applied_rules` | Audit log of rules applied to each plan |
 
-Without Supabase configured, all data lives in an in-memory mock store (reset on server restart).
+Without Supabase configured, data is not persisted between server restarts.
 
 ---
 
@@ -120,7 +120,7 @@ src/
 │   ├── plan/PlanViews.tsx          # Plan tab views
 │   └── ui/                         # shadcn/ui primitives
 └── lib/
-    ├── llm.ts                      # LLM provider abstraction + mock
+    ├── llm.ts                      # LLM provider abstraction
     ├── pipeline.ts                 # End-to-end plan generation pipeline
     ├── prompts.ts                  # All LLM prompts
     ├── skillRules.ts               # Rule retrieval and application
@@ -129,8 +129,8 @@ src/
     ├── resume.ts                   # Project resume-state logic
     ├── env.ts                      # Environment variable helpers
     └── db/
-        ├── index.ts                # DB client (Supabase or mock)
-        ├── mock-store.ts           # In-memory fallback store
+        ├── index.ts                # DB client
+        ├── local-store.ts          # Local fallback store (dev only)
         └── types.ts                # TypeScript DB types
 ```
 

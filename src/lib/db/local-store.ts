@@ -136,7 +136,7 @@ function loadFromDisk(): Store | null {
   return null;
 }
 
-export function saveMockStore(): void {
+export function saveLocalStore(): void {
   const store = globalThis.__PF_STORE__;
   if (!store) return;
   try {
@@ -146,11 +146,11 @@ export function saveMockStore(): void {
   }
 }
 
-export function getMockStore(): Store {
+export function getLocalStore(): Store {
   if (!globalThis.__PF_STORE__) {
     globalThis.__PF_STORE__ = loadFromDisk() ?? defaultStore();
   }
   return globalThis.__PF_STORE__;
 }
 
-export const mockIds = { uuid, nowIso };
+export const localIds = { uuid, nowIso };

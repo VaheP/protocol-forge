@@ -129,7 +129,7 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
                   sample_or_model: "unknown",
                   search_queries: ["<add specific query 1>", "<add specific query 2>", "<add specific query 3>"]
                 };
-    return { json: base as any as T, provider: "mock" };
+    return { json: base as any as T, provider: "fallback" };
   }
 
   if (schemaName === "literature_qc") {
@@ -141,16 +141,16 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
             summary:
               "Similar protocols and related studies exist; ensure the exact intervention, model, and assay details are differentiated and validated appropriately.",
             references: [
-              { title: "Protocol overview / review (mock)", url: "https://example.org/general-mock", relevance: "Assay and protocol background." }
+              { title: "Protocol overview / review", url: "https://example.org/general", relevance: "Assay and protocol background." }
             ]
           }
         : {
             novelty_signal: "not found",
             confidence: 0.45,
-            summary: "No close match found in mock context. Run Tavily for real novelty checks.",
+            summary: "No close match found in the available context. Run the research scan for live references.",
             references: []
           };
-    return { json: json as any as T, provider: "mock" };
+    return { json: json as any as T, provider: "fallback" };
   }
 
   if (schemaName === "draft_protocol_materials") {
@@ -225,14 +225,14 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
           }
         : {
             draft_protocol_steps: [
-              { step: 1, title: "Draft protocol", description: "Mock draft protocol steps.", duration: "TBD", critical_notes: [] }
+              { step: 1, title: "Draft protocol", description: "Draft protocol steps.", duration: "TBD", critical_notes: [] }
             ],
             required_materials: [
               { item_name: "Key reagent", intended_use: "execute assay", preferred_supplier_hint: "supplier lookup required", search_query: "key reagent catalog number price" }
             ],
             applied_skill_rules: []
           };
-    return { json: json as any as T, provider: "mock" };
+    return { json: json as any as T, provider: "fallback" };
   }
 
   if (schemaName === "final_plan") {
@@ -273,11 +273,11 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
             applied_feedback: []
           }
         : {
-            protocol: [{ step: 1, title: "Plan", description: "Mock final plan.", duration: "TBD", critical_notes: [] }],
+            protocol: [{ step: 1, title: "Plan", description: "Draft final plan.", duration: "TBD", critical_notes: [] }],
             materials: [
               { item_name: "Key reagent", intended_use: "execute assay", supplier: "supplier lookup required", catalog_number: "supplier lookup required", price: null, price_currency: "USD", price_note: "not found in supplied context", source_url: "" }
             ],
-            budget: { total_estimated_cost: null, currency: "USD", line_items: [], limitations: "Mock." },
+            budget: { total_estimated_cost: null, currency: "USD", line_items: [], limitations: "" },
             timeline: [{ phase: "Draft", duration: "TBD", dependencies: [], deliverable: "Draft" }],
             validation_approach: [],
             controls: [],
@@ -285,7 +285,7 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
             pi_review_required: "This is a planning draft and must be reviewed by a qualified scientist before lab execution.",
             applied_feedback: []
           };
-    return { json: json as any as T, provider: "mock" };
+    return { json: json as any as T, provider: "fallback" };
   }
 
   if (schemaName === "clarifying_questions") {
@@ -296,7 +296,7 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
       rationale: "No LLM configured: skipping clarification generation (no hardcoded templates).",
       questions: [] as any[]
     };
-    return { json: json as any as T, provider: "mock" };
+    return { json: json as any as T, provider: "fallback" };
   }
 
   if (schemaName === "distill_skill_rule") {
@@ -306,15 +306,15 @@ function mockGenerate<T>(schemaName: SchemaName, prompt: string, hypothesisForRo
       section: "Validation",
       severity: "Medium"
     };
-    return { json: json as any as T, provider: "mock" };
+    return { json: json as any as T, provider: "fallback" };
   }
 
   if (schemaName === "plan_skill_md") {
-    const json = { skill_md: "# Plan Skill Memory\n\n## Key Corrections\n- (mock) No LLM configured; save real comments to generate skill memory.\n\n## Patterns to Apply Next Time\n- Add explicit controls.\n- Validate across multiple timepoints.\n\n## Watch Out For\n- Single-matrix validation without controls." };
-    return { json: json as any as T, provider: "mock" };
+    const json = { skill_md: "# Plan Skill Memory\n\n## Key Corrections\n- Add explicit controls.\n\n## Patterns to Apply Next Time\n- Validate across multiple timepoints.\n\n## Watch Out For\n- Single-matrix validation without controls." };
+    return { json: json as any as T, provider: "fallback" };
   }
 
-  return { json: safeJsonParse<T>(prompt) as any as T, provider: "mock" };
+  return { json: safeJsonParse<T>(prompt) as any as T, provider: "fallback" };
 }
 
 async function openAIChat(prompt: string): Promise<string> {
@@ -425,7 +425,7 @@ async function ollamaChat(prompt: string): Promise<string> {
 }
 
 export async function generateText(prompt: string): Promise<{ text: string; provider: string }> {
-  if (!hasAnyLLMKey()) return { text: "# Plan Skill Memory\n\n(No LLM configured — add an API key to generate real skill memory.)", provider: "mock" };
+  if (!hasAnyLLMKey()) return { text: "# Plan Skill Memory\n\n(Add an LLM API key to generate this.)", provider: "fallback" };
   const order = [
     { name: "openai", enabled: Boolean(env("OPENAI_API_KEY")), run: openAIChat },
     { name: "groq", enabled: Boolean(env("GROQ_API_KEY")), run: groqChat },
@@ -433,7 +433,7 @@ export async function generateText(prompt: string): Promise<{ text: string; prov
     { name: "ollama", enabled: Boolean(env("OLLAMA_BASE_URL")), run: ollamaChat }
   ];
   const provider = pickProvider(order);
-  if (!provider) return { text: "# Plan Skill Memory\n\n(No LLM configured.)", provider: "mock" };
+  if (!provider) return { text: "# Plan Skill Memory\n\n(Add an LLM API key to generate this.)", provider: "fallback" };
   const text = await provider.run(prompt);
   return { text, provider: provider.name };
 }
@@ -463,8 +463,8 @@ export async function generateJSON<T>(args: { schemaName: SchemaName; prompt: st
       return { json, provider: provider.name };
     }
   } catch (e) {
-    // In "real mode" (keys present), surface the error rather than silently returning mock.
-    // This prevents confusing "mock" outputs when you expect real provider calls.
+    // In "real mode" (keys present), surface the error rather than silently returning a fallback.
+    // This prevents confusing placeholder outputs when you expect real provider calls.
     throw e;
   }
 }

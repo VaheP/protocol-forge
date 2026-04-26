@@ -44,5 +44,5 @@ next-env.d.ts
 .vercel
 .turbo
 
-# Mock store persistence
+# Local store persistence
 .pf-store.json

@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { getMockStore, mockIds, saveMockStore } from "@/lib/db/mock-store";
+import { getLocalStore, localIds, saveLocalStore } from "@/lib/db/local-store";
 import type {
   AppliedRule,
   ClarificationAnswer,
@@ -59,9 +59,9 @@ export async function dbCreateProject(input: InsertProject): Promise<Project> {
     return data as Project;
   }
 
-  const store = getMockStore();
+  const store = getLocalStore();
   const p: Project = {
-    id: mockIds.uuid(),
+    id: localIds.uuid(),
     title: input.title ?? null,
     original_hypothesis: input.original_hypothesis,
     domain: input.domain ?? null,
@@ -69,10 +69,10 @@ export async function dbCreateProject(input: InsertProject): Promise<Project> {
     target: input.target ?? null,
     sample_type: input.sample_type ?? null,
     parsed_json: input.parsed_json ?? null,
-    created_at: mockIds.nowIso()
+    created_at: localIds.nowIso()
   };
   store.projects.unshift(p);
-  saveMockStore();
+  saveLocalStore();
   return p;
 }
 
@@ -87,7 +87,7 @@ export async function dbGetClarifications(projectId: UUID): Promise<Clarificatio
     if (error) throw new Error(error.message);
     return (data ?? []) as ClarificationAnswer[];
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.clarifications.filter((c) => c.project_id === projectId);
 }
 
@@ -101,7 +101,7 @@ export async function dbCountClarifications(projectId: UUID): Promise<number> {
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.clarifications.filter((c) => c.project_id === projectId).length;
 }
 
@@ -115,7 +115,7 @@ export async function dbCountLiteratureResults(projectId: UUID): Promise<number>
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.literatureResults.filter((r) => r.project_id === projectId).length;
 }
 
@@ -129,7 +129,7 @@ export async function dbCountLiteratureQC(projectId: UUID): Promise<number> {
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.literatureQC.filter((q) => q.project_id === projectId).length;
 }
 
@@ -152,16 +152,16 @@ export async function dbInsertLiteratureResults(
     if (error) throw new Error(error.message);
     return;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   for (const r of rows) {
     store.literatureResults.push({
-      id: mockIds.uuid(),
-      created_at: mockIds.nowIso(),
+      id: localIds.uuid(),
+      created_at: localIds.nowIso(),
       ...r,
       project_id: projectId
     });
   }
-  saveMockStore();
+  saveLocalStore();
 }
 
 export async function dbUpsertLiteratureQC(
@@ -183,17 +183,17 @@ export async function dbUpsertLiteratureQC(
     if (error) throw new Error(error.message);
     return data as LiteratureQC;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const row: LiteratureQC = {
-    id: mockIds.uuid(),
+    id: localIds.uuid(),
     project_id: projectId,
     novelty_signal: qc.novelty_signal ?? null,
     confidence: qc.confidence ?? null,
     summary: qc.summary ?? null,
-    created_at: mockIds.nowIso()
+    created_at: localIds.nowIso()
   };
   store.literatureQC.push(row);
-  saveMockStore();
+  saveLocalStore();
   return row;
 }
 
@@ -208,7 +208,7 @@ export async function dbListActiveSkillRules(): Promise<SkillRule[]> {
     if (error) throw new Error(error.message);
     return (data ?? []) as SkillRule[];
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.skillRules.filter((r) => r.active);
 }
 
@@ -259,9 +259,9 @@ export async function dbCreatePlan(
     }
     throw new Error(error.message);
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const p: Plan = {
-    id: mockIds.uuid(),
+    id: localIds.uuid(),
     project_id: projectId,
     plan_json: planJson,
     model_used: modelUsed,
@@ -269,10 +269,10 @@ export async function dbCreatePlan(
     skill_md_updated_at: null,
     generated_with_skill_md_at: meta?.generated_with_skill_md_at ?? null,
     generated_with_global_skill_at: meta?.generated_with_global_skill_at ?? null,
-    created_at: mockIds.nowIso()
+    created_at: localIds.nowIso()
   };
   store.plans.push(p);
-  saveMockStore();
+  saveLocalStore();
   return p;
 }
 
@@ -289,10 +289,10 @@ export async function dbInsertAppliedRules(
     if (error) throw new Error(error.message);
     return (data ?? []) as AppliedRule[];
   }
-  const store = getMockStore();
-  const inserted = rows.map((r) => ({ id: mockIds.uuid(), created_at: mockIds.nowIso(), ...r, plan_id: planId }));
+  const store = getLocalStore();
+  const inserted = rows.map((r) => ({ id: localIds.uuid(), created_at: localIds.nowIso(), ...r, plan_id: planId }));
   store.appliedRules.push(...inserted);
-  saveMockStore();
+  saveLocalStore();
   return inserted;
 }
 
@@ -303,7 +303,7 @@ export async function dbListProjects(limit = 20): Promise<Project[]> {
     if (error) throw new Error(error.message);
     return (data ?? []) as Project[];
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.projects.slice(0, limit);
 }
 
@@ -314,7 +314,7 @@ export async function dbGetProject(projectId: UUID): Promise<Project | null> {
     if (error) throw new Error(error.message);
     return (data as Project) ?? null;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.projects.find((p) => p.id === projectId) ?? null;
 }
 
@@ -325,7 +325,7 @@ export async function dbDeleteProject(projectId: UUID) {
     if (error) throw new Error(error.message);
     return;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   store.projects = store.projects.filter((p) => p.id !== projectId);
   store.clarifications = store.clarifications.filter((c) => c.project_id !== projectId);
   store.literatureQC = store.literatureQC.filter((q) => q.project_id !== projectId);
@@ -334,7 +334,7 @@ export async function dbDeleteProject(projectId: UUID) {
   store.plans = store.plans.filter((p) => p.project_id !== projectId);
   store.comments = store.comments.filter((c) => !planIds.has(c.plan_id));
   store.appliedRules = store.appliedRules.filter((a) => !planIds.has(a.plan_id));
-  saveMockStore();
+  saveLocalStore();
 }
 
 export async function dbGetLatestPlanByProject(projectId: UUID): Promise<Plan | null> {
@@ -350,7 +350,7 @@ export async function dbGetLatestPlanByProject(projectId: UUID): Promise<Plan | 
     if (error) throw new Error(error.message);
     return data ? normalizePlan(data) : null;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const plans = store.plans.filter((p) => p.project_id === projectId);
   return plans.length ? plans[plans.length - 1] : null;
 }
@@ -362,7 +362,7 @@ export async function dbGetPlan(planId: UUID): Promise<Plan | null> {
     if (error) throw new Error(error.message);
     return data ? normalizePlan(data) : null;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.plans.find((p) => p.id === planId) ?? null;
 }
 
@@ -377,7 +377,7 @@ export async function dbListAppliedRulesForPlan(planId: UUID): Promise<AppliedRu
     if (error) throw new Error(error.message);
     return (data ?? []) as AppliedRule[];
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.appliedRules.filter((a) => a.plan_id === planId);
 }
 
@@ -395,7 +395,7 @@ export async function dbListAppliedRulesJoinedForPlan(planId: UUID): Promise<App
     for (const r of (rules ?? []) as SkillRule[]) byId.set(r.id, r);
     return applied.map((a) => ({ ...a, skill_rule: byId.get(a.rule_id) ?? null }));
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const byId = new Map(store.skillRules.map((r) => [r.id, r] as const));
   return applied.map((a) => ({ ...a, skill_rule: byId.get(a.rule_id) ?? null }));
 }
@@ -422,10 +422,10 @@ export async function dbCreateComment(input: Omit<Comment, "id" | "created_at">)
     if (error) throw new Error(error.message);
     return normalizeComment(data);
   }
-  const store = getMockStore();
-  const c: Comment = { id: mockIds.uuid(), created_at: mockIds.nowIso(), ...input };
+  const store = getLocalStore();
+  const c: Comment = { id: localIds.uuid(), created_at: localIds.nowIso(), ...input };
   store.comments.push(c);
-  saveMockStore();
+  saveLocalStore();
   return c;
 }
 
@@ -440,7 +440,7 @@ export async function dbListCommentsByPlan(planId: UUID): Promise<Comment[]> {
     if (error) throw new Error(error.message);
     return (data ?? []).map(normalizeComment);
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.comments.filter((c) => c.plan_id === planId);
 }
 
@@ -459,11 +459,11 @@ export async function dbUpdateComment(
     if (error) throw new Error(error.message);
     return normalizeComment(data);
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const idx = store.comments.findIndex((c) => c.id === id);
   if (idx === -1) throw new Error("Comment not found");
   store.comments[idx] = { ...store.comments[idx], ...updates };
-  saveMockStore();
+  saveLocalStore();
   return store.comments[idx];
 }
 
@@ -474,9 +474,9 @@ export async function dbDeleteComment(id: UUID): Promise<void> {
     if (error) throw new Error(error.message);
     return;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   store.comments = store.comments.filter((c) => c.id !== id);
-  saveMockStore();
+  saveLocalStore();
 }
 
 export async function dbUpdatePlanSkillMd(planId: UUID, skillMd: string): Promise<Plan> {
@@ -509,11 +509,11 @@ export async function dbUpdatePlanSkillMd(planId: UUID, skillMd: string): Promis
     }
     throw new Error(error.message);
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const idx = store.plans.findIndex((p) => p.id === planId);
   if (idx === -1) throw new Error("Plan not found");
-  store.plans[idx] = { ...store.plans[idx], skill_md: skillMd, skill_md_updated_at: mockIds.nowIso() };
-  saveMockStore();
+  store.plans[idx] = { ...store.plans[idx], skill_md: skillMd, skill_md_updated_at: localIds.nowIso() };
+  saveLocalStore();
   return store.plans[idx];
 }
 
@@ -530,7 +530,7 @@ export async function dbGetGlobalSkillUpdatedAt(): Promise<string | null> {
     const row = (data ?? [])[0] as any;
     return row?.created_at ?? null;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const active = store.skillRules.filter((r) => r.active);
   if (!active.length) return null;
   return active
@@ -559,10 +559,10 @@ export async function dbCreateSkillRule(input: Omit<SkillRule, "id" | "created_a
     if (error) throw new Error(error.message);
     return data as SkillRule;
   }
-  const store = getMockStore();
-  const r: SkillRule = { id: mockIds.uuid(), created_at: mockIds.nowIso(), ...input };
+  const store = getLocalStore();
+  const r: SkillRule = { id: localIds.uuid(), created_at: localIds.nowIso(), ...input };
   store.skillRules.unshift(r);
-  saveMockStore();
+  saveLocalStore();
   return r;
 }
 
@@ -573,7 +573,7 @@ export async function dbListSkillRules(limit = 200): Promise<SkillRule[]> {
     if (error) throw new Error(error.message);
     return (data ?? []) as SkillRule[];
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.skillRules.slice(0, limit);
 }
 
@@ -601,7 +601,7 @@ export async function dbDeleteGlobalSkillRule(ruleId: UUID): Promise<{ ok: true 
     return { ok: true };
   }
 
-  const store = getMockStore();
+  const store = getLocalStore();
   const idx = store.skillRules.findIndex((r) => r.id === ruleId);
   if (idx === -1) throw new Error("Skill rule not found");
   const sourceCommentId = store.skillRules[idx].source_comment_id;
@@ -610,7 +610,7 @@ export async function dbDeleteGlobalSkillRule(ruleId: UUID): Promise<{ ok: true 
     const cIdx = store.comments.findIndex((c) => c.id === sourceCommentId);
     if (cIdx !== -1) store.comments[cIdx] = { ...store.comments[cIdx], is_global: false };
   }
-  saveMockStore();
+  saveLocalStore();
   return { ok: true };
 }
 
@@ -626,18 +626,18 @@ export async function dbInsertClarificationAnswers(
     if (error) throw new Error(error.message);
     return;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   for (const a of answers) {
     store.clarifications.push({
-      id: mockIds.uuid(),
+      id: localIds.uuid(),
       project_id: projectId,
       question_id: a.question_id,
       question_text: a.question_text,
       selected_answer: a.selected_answer,
-      created_at: mockIds.nowIso()
+      created_at: localIds.nowIso()
     });
   }
-  saveMockStore();
+  saveLocalStore();
 }
 
 export async function dbListLiteratureResults(projectId: UUID, limit = 20) {
@@ -653,7 +653,7 @@ export async function dbListLiteratureResults(projectId: UUID, limit = 20) {
     if (error) throw new Error(error.message);
     return data ?? [];
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   return store.literatureResults.filter((r) => r.project_id === projectId).slice(0, limit);
 }
 
@@ -670,7 +670,7 @@ export async function dbGetLatestLiteratureQC(projectId: UUID) {
     if (error) throw new Error(error.message);
     return data ?? null;
   }
-  const store = getMockStore();
+  const store = getLocalStore();
   const rows = store.literatureQC.filter((r) => r.project_id === projectId);
   return rows.length ? rows[rows.length - 1] : null;
 }

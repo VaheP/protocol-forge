@@ -115,7 +115,7 @@ export default function LiteraturePage({ params }: { params: { id: string } }) {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Novelty check</CardTitle>
-                <CardDescription>Traffic-light novelty signal based on Tavily search evidence (or mock fallback).</CardDescription>
+                <CardDescription>Traffic-light novelty signal based on search evidence.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {qc ? (

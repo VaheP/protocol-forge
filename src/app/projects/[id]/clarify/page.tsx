@@ -183,7 +183,7 @@ export default function ClarifyPage({ params }: { params: { id: string } }) {
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-muted-foreground">
-                    Next step: run literature QC (Tavily if configured; otherwise mock QC for demo reliability).
+                    Next step: run the research scan (uses Tavily when configured).
                   </div>
                   <Button onClick={onRunQC} disabled={!(canSaveAnswers || canSkip) || saving}>
                     {saving ? "Continuing…" : questions.length ? "Save answers & run literature QC" : "Continue to literature QC"}

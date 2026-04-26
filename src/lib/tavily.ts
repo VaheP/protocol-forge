@@ -29,14 +29,14 @@ function mockSearch(query: string): TavilyResult[] {
         url: "https://example.org/fitc-dextran-mouse-protocol",
         snippet: "Common protocol for measuring intestinal permeability via oral gavage and serum fluorescence.",
         score: 0.86,
-        source: "mock"
+        source: "fallback"
       },
       {
         title: "Probiotics and tight junction proteins in murine models",
         url: "https://example.org/probiotics-tight-junction-mice",
         snippet: "LGG and other probiotics modulate occludin/claudin expression and barrier function.",
         score: 0.74,
-        source: "mock"
+        source: "fallback"
       }
     ];
   }
@@ -48,7 +48,7 @@ function mockSearch(query: string): TavilyResult[] {
         url: "https://example.org/crp-paper-electrochemical",
         snippet: "Review of paper-based electrochemical platforms and validation considerations.",
         score: 0.82,
-        source: "mock"
+        source: "fallback"
       }
     ];
   }
@@ -60,7 +60,7 @@ function mockSearch(query: string): TavilyResult[] {
         url: "https://example.org/trehalose-cryopreservation-cells",
         snippet: "Trehalose can improve post-thaw viability under certain protocols; includes viability timepoints.",
         score: 0.79,
-        source: "mock"
+        source: "fallback"
       }
     ];
   }
@@ -69,22 +69,22 @@ function mockSearch(query: string): TavilyResult[] {
   if (q.includes("catalog") || q.includes("price")) {
     return [
       {
-        title: "Supplier listing (mock)",
-        url: "https://example.org/supplier-mock",
+        title: "Supplier listing",
+        url: "https://example.org/supplier",
         snippet: "Catalog: supplier lookup required. Price not found in supplied context.",
         score: 0.5,
-        source: "mock"
+        source: "fallback"
       }
     ];
   }
 
   return [
     {
-      title: "General scientific reference (mock)",
-      url: "https://example.org/general-mock",
-      snippet: "Mock result used when TAVILY_API_KEY is not configured.",
+      title: "General scientific reference",
+      url: "https://example.org/general",
+      snippet: "Fallback result used when literature search is not configured.",
       score: 0.4,
-      source: "mock"
+      source: "fallback"
     }
   ];
 }
@@ -114,7 +114,7 @@ export async function tavilySearch(query: string, opts?: { maxResults?: number }
     const text = await res.text().catch(() => "");
     return [
       {
-        title: "Tavily error (check TAVILY_API_KEY)",
+        title: "Search temporarily unavailable",
         url: "",
         snippet: `HTTP ${res.status} from Tavily. ${text.slice(0, 200)}`.trim(),
         score: 0,

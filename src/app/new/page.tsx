@@ -393,7 +393,7 @@ export default function NewProjectPage() {
               )}
             </button>
             <p className="text-[11.5px] text-slate-500 leading-snug">
-              Mock mode works without keys; add Supabase / Tavily / LLM keys for real evidence grounding.
+              Add Supabase / Tavily / an LLM key for real evidence grounding.
             </p>
           </div>
 

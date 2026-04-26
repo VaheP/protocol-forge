@@ -264,6 +264,16 @@ export function CommentableSection({
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Save failed");
       onCommentAdded(json.comment as SectionComment);
+
+      // If this comment created a global skill rule, nudge the sidebar to refresh.
+      if (json?.skill_rule?.id) {
+        try {
+          window.dispatchEvent(new CustomEvent("pf:memory-updated", { detail: { skill_rule_id: json.skill_rule.id } }));
+        } catch {
+          // ignore
+        }
+      }
+
       closePopup();
     } catch (err: any) {
       setSaveError(err?.message ?? String(err));
@@ -386,7 +396,7 @@ export function CommentableSection({
             </div>
             <label className="flex items-center gap-2 text-[11px] text-slate-600 cursor-pointer select-none">
               <input type="checkbox" checked={isGlobal} onChange={(e) => setIsGlobal(e.target.checked)} className="rounded" />
-              Save as global skill rule (applies to future plans)
+              Save as a global rule (use this in future plans)
             </label>
             {saveError && <div className="text-[11px] text-red-600">{saveError}</div>}
             <div className="flex justify-end gap-2 pt-1">

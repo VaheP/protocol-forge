@@ -1,10 +1,35 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { dbGetClarifications, dbGetProject, dbInsertLiteratureResults, dbUpsertLiteratureQC } from "@/lib/db";
+import { dbGetClarifications, dbGetProject, dbInsertLiteratureResults, dbListLiteratureResults, dbUpsertLiteratureQC } from "@/lib/db";
 import { prompts } from "@/lib/prompts";
 import { generateJSON } from "@/lib/llm";
 import { tavilySearch } from "@/lib/tavily";
 import { extractRelevantSections } from "@/lib/extraction";
+
+function normUrl(u: any) {
+  const s = String(u ?? "").trim();
+  if (!s) return "";
+  return s.replace(/#.*$/, "").replace(/\/$/, "").toLowerCase();
+}
+
+function refKey(r: any) {
+  const url = normUrl(r?.url);
+  const title = String(r?.title ?? "").trim().toLowerCase();
+  return url || title;
+}
+
+function dedupeRefs<T extends { title?: any; url?: any }>(refs: T[]) {
+  const out: T[] = [];
+  const seen = new Set<string>();
+  for (const r of refs ?? []) {
+    const k = refKey(r);
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
 
 const BodySchema = z.object({
   project_id: z.string().min(10)
@@ -60,9 +85,42 @@ export async function POST(req: Request) {
       summary: qc.json.summary
     });
 
+    // De-dupe LLM-picked references (they sometimes repeat verbatim).
+    const qcRefs = dedupeRefs((qc.json.references ?? []) as any[]).slice(0, 8);
+
+    // Persist QC-picked references into literature_results so the plan page and QC view agree.
+    // Only insert ones we haven't already stored (best-effort based on URL).
+    const existing = await dbListLiteratureResults(project.id, 50);
+    const existingUrls = new Set(existing.map((r: any) => normUrl(r?.url)).filter(Boolean));
+    const toInsert = qcRefs
+      .filter((r: any) => {
+        const u = normUrl(r?.url);
+        if (!u) return false;
+        return !existingUrls.has(u);
+      })
+      .slice(0, 5)
+      .map((r: any) => ({
+        title: r.title ?? null,
+        url: r.url ?? null,
+        snippet: (r.relevance ?? null) as any,
+        source: "qc_ref",
+        relevance_score: 0.99
+      }));
+
+    if (toInsert.length) {
+      await dbInsertLiteratureResults(project.id, toInsert as any);
+    }
+
+    // Return the union of: QC-picked refs + stored literature refs (deduped).
+    const after = await dbListLiteratureResults(project.id, 15);
+    const union = dedupeRefs([
+      ...qcRefs.map((r: any) => ({ title: r.title, url: r.url, relevance: r.relevance ?? "" })),
+      ...after.map((r: any) => ({ title: r.title, url: r.url, relevance: r.snippet ?? "" }))
+    ]).slice(0, 5);
+
     return NextResponse.json({
       literature_qc: persisted,
-      references: (qc.json.references ?? []).slice(0, 3),
+      references: union,
       debug: { search_queries: effective, llm_provider: qc.provider }
     });
   } catch (err: any) {

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FlaskConical, Plus, Brain, ChevronRight } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { FlaskConical, Plus, Brain, ChevronRight, FileText, Sparkles, ArrowUpRight, Trash2 } from "lucide-react";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -35,7 +36,15 @@ const STATUS_COLORS: Record<string, string> = {
   "Lit QC": "text-blue-700",
 };
 
+function stageBadge(stage: string | null | undefined) {
+  const s = String(stage ?? "");
+  if (s === "plan") return { label: "Plan ready", tone: "green" as const };
+  if (s === "literature") return { label: "Literature QC", tone: "amber" as const };
+  return { label: "Clarify", tone: "amber" as const };
+}
+
 export default function ProjectsPage() {
+  const reduceMotion = useReducedMotion();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -47,7 +56,7 @@ export default function ProjectsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/projects");
+      const res = await fetch("/api/projects", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Failed");
       setProjects(json.projects ?? []);
@@ -87,9 +96,10 @@ export default function ProjectsPage() {
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <SectionLabel>Projects</SectionLabel>
-          <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-slate-900">Your lab&apos;s plans</h1>
+          <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-slate-900">Your projects</h1>
           <p className="mt-1.5 text-[13.5px] text-slate-600">
-            All experiment plans across your workspace.
+            A <span className="font-medium text-slate-800">project</span> is your research question + context. A{" "}
+            <span className="font-medium text-slate-800">plan</span> is a specific generated draft for that project (you can create multiple).
           </p>
         </div>
         <Link
@@ -98,6 +108,42 @@ export default function ProjectsPage() {
         >
           <Plus size={13} /> New plan
         </Link>
+      </div>
+
+      <div className="mb-5 grid grid-cols-12 gap-4">
+        <div className="col-span-12 md:col-span-7">
+          <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-5 relative overflow-hidden">
+            <div className="absolute inset-0 dot-bg opacity-[0.10] pointer-events-none" />
+            <div className="relative flex items-start gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-violet-50 ring-1 ring-violet-200 grid place-items-center shrink-0">
+                <Sparkles size={18} className="text-violet-700" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[14px] font-semibold text-slate-900">Think in “projects”, iterate with “plans”</div>
+                <div className="mt-1 text-[12.5px] text-slate-600 leading-relaxed">
+                  Open a project to continue where you left off. When you regenerate, you’ll create a <span className="font-medium text-slate-800">new plan draft</span> under the same project.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="col-span-12 md:col-span-5">
+          <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-5">
+            <SectionLabel>Quick counts</SectionLabel>
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[22px] font-semibold tracking-tight text-slate-900 leading-none">{loading ? "—" : projects.length}</div>
+                <div className="text-[11px] text-slate-500 mt-1">projects</div>
+              </div>
+              <div>
+                <div className="text-[22px] font-semibold tracking-tight text-slate-900 leading-none">
+                  {loading ? "—" : projects.filter((p) => Boolean(p?.resume?.stages?.plan?.done)).length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">with a plan draft</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -124,60 +170,83 @@ export default function ProjectsPage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow overflow-hidden">
-          <div className="divide-y divide-[var(--line-2)]">
-            {projects.map((p) => (
-              <div key={p.id} className="px-5 py-4 hover:bg-slate-50/70 flex items-center gap-4 group">
-                <div className="h-10 w-10 rounded-lg bg-slate-50 ring-1 ring-slate-200 grid place-items-center text-slate-400 shrink-0">
-                  <FlaskConical size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-medium text-slate-900 truncate">
-                    {p.title ?? "Untitled project"}
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          {projects.map((p, idx) => {
+            const nextStage = p?.resume?.next?.stage ?? null;
+            const badge = stageBadge(nextStage);
+            const openHref = p?.resume?.next?.href ?? `/projects/${p.id}/clarify`;
+            const planHref = p?.resume?.stages?.plan?.href ?? `/projects/${p.id}/plan`;
+            const hasPlan = Boolean(p?.resume?.stages?.plan?.done);
+            return (
+              <motion.div
+                key={p.id}
+                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: reduceMotion ? 0 : Math.min(idx * 0.03, 0.18), ease: [0.22, 1, 0.36, 1] }}
+                whileHover={reduceMotion ? undefined : { y: -2 }}
+                className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow overflow-hidden"
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="h-10 w-10 rounded-2xl bg-slate-50 ring-1 ring-slate-200 grid place-items-center text-slate-500 shrink-0">
+                        <FlaskConical size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[14px] font-semibold text-slate-900 truncate">{p.title ?? "Untitled project"}</div>
+                        <div className="mt-0.5 text-[12px] text-slate-500 line-clamp-2">{p.original_hypothesis}</div>
+                      </div>
+                    </div>
+                    <Badge tone={badge.tone}>
+                      <span className={STATUS_COLORS[badge.label] ?? ""}>{badge.label}</span>
+                    </Badge>
                   </div>
-                  <div className="mt-0.5 text-[12px] text-slate-500 truncate">{p.original_hypothesis}</div>
-                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
                     {p.domain && <Badge tone="neutral">{p.domain}</Badge>}
                     {p.applied_rules_count > 0 && (
                       <Badge tone="violet" icon={<Brain size={10} />}>
                         {p.applied_rules_count} rule{p.applied_rules_count > 1 ? "s" : ""}
                       </Badge>
                     )}
+                    <Badge tone="neutral" icon={<FileText size={10} />}>
+                      {hasPlan ? "has a plan draft" : "no plan yet"}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-[var(--line-2)] flex items-center justify-between gap-2">
+                    <Link
+                      href={openHref}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-medium bg-[#0b1220] text-white hover:bg-[#1a2540] transition-colors"
+                    >
+                      Continue <ArrowUpRight size={13} className="text-white/70" />
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={planHref}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-medium ring-1 ring-inset ring-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Open latest plan <ChevronRight size={14} className="text-slate-400" />
+                      </Link>
+                      <button
+                        onClick={() => { setDeleteTarget(p); setDeleteOpen(true); }}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-rose-600 ring-1 ring-inset ring-rose-200 hover:bg-rose-50 transition-colors"
+                        title="Delete project"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  <div className="hidden sm:flex items-center gap-2">
-                    <Link
-                      href={p.resume?.stages?.clarify?.href ?? `/projects/${p.id}/clarify`}
-                      className="h-8 px-3 rounded-lg text-[12.5px] font-medium ring-1 ring-inset ring-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      Clarify
-                    </Link>
-                    <Link
-                      href={p.resume?.stages?.literature?.href ?? `/projects/${p.id}/literature`}
-                      className="h-8 px-3 rounded-lg text-[12.5px] font-medium ring-1 ring-inset ring-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      Literature
-                    </Link>
-                    <Link
-                      href={p.resume?.stages?.plan?.href ?? `/projects/${p.id}/plan`}
-                      className="h-8 px-3 rounded-lg text-[12.5px] font-medium bg-[#0b1220] text-white hover:bg-[#1a2540] transition-colors"
-                    >
-                      Plan
-                    </Link>
-                  </div>
-                  <button
-                    onClick={() => { setDeleteTarget(p); setDeleteOpen(true); }}
-                    className="h-8 px-3 rounded-lg text-[12.5px] font-medium text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    Delete
-                  </button>
-                </div>
-                <ChevronRight size={14} className="text-slate-300 shrink-0" />
-              </div>
-            ))}
-          </div>
-        </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
       )}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

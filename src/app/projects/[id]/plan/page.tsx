@@ -11,6 +11,7 @@ import { CommentableSection, type SectionComment } from "@/components/plan/Comme
 import { BudgetView, ControlsView, MaterialsView, PiReviewView, ProtocolView, RisksView, TimelineView, ValidationView } from "@/components/plan/PlanViews";
 import { Brain, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 
 function trafficVariant(signal: string) {
   if (signal === "not found") return "green";
@@ -54,7 +55,7 @@ function splitAppliedRules(rows: any[]) {
   return { learned, seeded };
 }
 
-const SECTION_KEYS = ["protocol", "materials", "budget", "timeline", "validation_approach", "controls", "risks", "pi_review_required"] as const;
+const SECTION_KEYS = ["protocol", "materials", "budget", "timeline", "validation_approach", "controls", "risks"] as const;
 
 function normalizeCommentSection(section: any): string | null {
   if (section == null) return null;
@@ -72,8 +73,10 @@ function normalizeCommentSection(section: any): string | null {
 
 export default function PlanPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const search = useSearchParams();
   const planId = search.get("plan_id");
+  const celebrateGuidance = search.get("celebrate_guidance") === "1";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<any>(null);
@@ -84,6 +87,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   const [skillMdOpen, setSkillMdOpen] = useState(false);
   const [generatingSkillMd, setGeneratingSkillMd] = useState(false);
   const [skillMdError, setSkillMdError] = useState<string | null>(null);
+  const [skillMdUpdatedAtLocal, setSkillMdUpdatedAtLocal] = useState<string | null>(null);
   const [globalSkillUpdatedAt, setGlobalSkillUpdatedAt] = useState<string | null>(null);
   const [regeneratingPlan, setRegeneratingPlan] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
@@ -120,6 +124,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
               applied_rules: planJson.applied_rules ?? []
             });
             setSkillMd(planJson.plan?.skill_md ?? null);
+            setSkillMdUpdatedAtLocal(planJson.plan?.skill_md_updated_at ?? null);
             setGlobalSkillUpdatedAt(planJson.global_skill_updated_at ?? null);
           }
         } else {
@@ -149,6 +154,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
               applied_rules
             });
             setSkillMd(plan?.skill_md ?? null);
+            setSkillMdUpdatedAtLocal(plan?.skill_md_updated_at ?? null);
           }
         }
       } catch (e: any) {
@@ -204,6 +210,12 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       if (!res.ok) throw new Error(json?.message ?? "Generation failed");
       setSkillMd(json.skill_md);
       setSkillMdOpen(true);
+      setSkillMdUpdatedAtLocal(new Date().toISOString());
+      // Best-effort: update local plan meta so gating can re-evaluate immediately.
+      setPayload((prev: any) => {
+        if (!prev?.plan) return prev;
+        return { ...prev, plan: { ...prev.plan, skill_md: json.skill_md, skill_md_updated_at: new Date().toISOString() } };
+      });
     } catch (err: any) {
       setSkillMdError(err?.message ?? String(err));
     } finally {
@@ -213,15 +225,26 @@ export default function PlanPage({ params }: { params: { id: string } }) {
 
   const canRegeneratePlan = useMemo(() => {
     if (!effectivePlanId) return false;
-    const skillUpdatedAt = planMeta?.skill_md_updated_at ?? null;
+    const skillUpdatedAt = planMeta?.skill_md_updated_at ?? skillMdUpdatedAtLocal ?? null;
     const usedSkillAt = planMeta?.generated_with_skill_md_at ?? null;
     const usedGlobalAt = planMeta?.generated_with_global_skill_at ?? null;
 
-    const skillChanged = Boolean(skillUpdatedAt && (!usedSkillAt || skillUpdatedAt > usedSkillAt));
-    const globalChanged = Boolean(globalSkillUpdatedAt && (!usedGlobalAt || globalSkillUpdatedAt > usedGlobalAt));
+    // If the DB doesn't have generation timestamps yet, treat any generated skill_md as a “change”
+    // until the plan is regenerated once.
+    const lacksSkillTracking = usedSkillAt == null && planMeta?.generated_with_skill_md_at === undefined;
+    const skillChanged = Boolean(
+      skillUpdatedAt &&
+        ((!usedSkillAt || skillUpdatedAt > usedSkillAt) || (lacksSkillTracking && Boolean(skillMd)))
+    );
+
+    const lacksGlobalTracking = usedGlobalAt == null && planMeta?.generated_with_global_skill_at === undefined;
+    const globalChanged = Boolean(
+      globalSkillUpdatedAt &&
+        ((!usedGlobalAt || globalSkillUpdatedAt > usedGlobalAt) || lacksGlobalTracking)
+    );
 
     return (skillChanged || globalChanged) && !regeneratingPlan;
-  }, [effectivePlanId, planMeta, globalSkillUpdatedAt, regeneratingPlan]);
+  }, [effectivePlanId, planMeta, globalSkillUpdatedAt, regeneratingPlan, skillMdUpdatedAtLocal, skillMd]);
 
   async function regeneratePlan() {
     if (!effectivePlanId) return;
@@ -231,7 +254,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       const res = await fetch(`/api/plans/${effectivePlanId}/regenerate`, { method: "POST" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Regeneration failed");
-      router.push(`/projects/${json.project.id}/plan?plan_id=${json.plan.id}`);
+      router.push(`/projects/${json.project.id}/plan?plan_id=${json.plan.id}&celebrate_guidance=1`);
     } catch (err: any) {
       setRegenerateError(err?.message ?? String(err));
     } finally {
@@ -249,61 +272,73 @@ export default function PlanPage({ params }: { params: { id: string } }) {
   );
 
   const appliedBox = useMemo(() => {
-    if (appliedFeedback.length === 0 && learnedApplied.length === 0 && seededApplied.length === 0) return null;
+    // Only show this when your saved guidance actually influenced the plan.
+    if (learnedApplied.length === 0 && !celebrateGuidance) return null;
+
     return (
-      <Card className="border-emerald-200 bg-emerald-50/50">
-        <CardHeader>
-          <CardTitle className="text-base">Expert memory included</CardTitle>
-          <CardDescription>
-            Shows reusable rules that influenced this plan via retrieval + prompting. This is not live fine-tuning.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {learnedApplied.length ? (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">From your saved feedback</div>
-              {learnedApplied.map((r: any) => (
-                <div key={r.id} className="rounded-md border bg-background p-3 text-sm">
-                  <div className="text-xs font-medium text-muted-foreground">Rule</div>
-                  <div className="mt-1 font-medium">{r.skill_rule?.rule_text ?? r.rule_id}</div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">Applied change: </span>
-                    {r.explanation}
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.99 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Card className="border-emerald-200 bg-emerald-50/50">
+          <CardHeader>
+            <CardTitle className="text-base">Your guidance applied</CardTitle>
+            <CardDescription>
+              These are the reusable notes you’ve saved that shaped this plan (retrieval + prompting, not fine-tuning).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {learnedApplied.length ? (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">From notes you’ve saved</div>
+                {learnedApplied.map((r: any) => (
+                  <div key={r.id} className="rounded-md border bg-background p-3 text-sm">
+                    <div className="text-xs font-medium text-muted-foreground">Rule</div>
+                    <div className="mt-1 font-medium">{r.skill_rule?.rule_text ?? r.rule_id}</div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Applied change: </span>
+                      {r.explanation}
+                    </div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-white/70 p-4">
+                <div className="text-[13px] font-semibold text-emerald-900">Nice — this draft used your saved guidance.</div>
+                <div className="mt-1 text-[12.5px] text-emerald-800">
+                  Want to see the exact notes it pulled from? Open Skill memory, or regenerate again after adding another global rule.
                 </div>
-              ))}
-            </div>
-          ) : null}
-          {seededApplied.length ? (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Library / seeded reusable rules</div>
-              {seededApplied.map((r: any) => (
-                <div key={r.id} className="rounded-md border bg-background p-3 text-sm">
-                  <div className="text-xs font-medium text-muted-foreground">Rule</div>
-                  <div className="mt-1 font-medium">{r.skill_rule?.rule_text ?? r.rule_id}</div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">Applied change: </span>
-                    {r.explanation}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {appliedFeedback.length ? (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Model attribution (from plan JSON)</div>
-              {appliedFeedback.map((a: any, idx: number) => (
-                <div key={`pf-${idx}`} className="rounded-md border bg-background p-3 text-sm">
-                  <div className="text-xs font-medium text-muted-foreground">Rule {a.rule_id}</div>
-                  <div className="mt-1">{a.applied_change}</div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     );
-  }, [appliedFeedback, learnedApplied, seededApplied]);
+  }, [appliedFeedback, learnedApplied, seededApplied, celebrateGuidance, reduceMotion]);
+
+  const refs = useMemo(() => {
+    function normUrl(u: any) {
+      const s = String(u ?? "").trim();
+      if (!s) return "";
+      return s.replace(/#.*$/, "").replace(/\/$/, "").toLowerCase();
+    }
+
+    const items = (payload?.literature_results ?? []) as any[];
+    const out: any[] = [];
+    const seen = new Set<string>();
+    for (const r of items) {
+      const url = normUrl(r?.url);
+      const title = String(r?.title ?? "").trim().toLowerCase();
+      const k = url || title;
+      if (!k) continue;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(r);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [payload]);
 
   if (loading) {
     return (
@@ -330,7 +365,6 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const refs = (payload?.literature_results ?? []).slice(0, 3);
   const sectionComments = (key: string) => comments.filter((c) => c.section === key);
 
   return (
@@ -411,8 +445,8 @@ export default function PlanPage({ params }: { params: { id: string } }) {
       {qc ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Literature QC</CardTitle>
-            <CardDescription>Novelty signal from search evidence.</CardDescription>
+            <CardTitle className="text-base">Research scan</CardTitle>
+            <CardDescription>A quick check for novelty + close prior work.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-2">
@@ -501,12 +535,6 @@ export default function PlanPage({ params }: { params: { id: string } }) {
               <CommentableSection planId={effectivePlanId} sectionKey="risks" title="Risks"
                 comments={sectionComments("risks")} onCommentAdded={onCommentAdded} onCommentDeleted={onCommentDeleted}>
                 <RisksView risks={planJson?.risks ?? []} />
-              </CommentableSection>
-            </TabsContent>
-            <TabsContent value="pi_review_required" className="mt-4">
-              <CommentableSection planId={effectivePlanId} sectionKey="pi_review_required" title="PI review warning"
-                comments={sectionComments("pi_review_required")} onCommentAdded={onCommentAdded} onCommentDeleted={onCommentDeleted}>
-                <PiReviewView text={String(planJson?.pi_review_required ?? "")} />
               </CommentableSection>
             </TabsContent>
           </Tabs>

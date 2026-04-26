@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Plus } from "lucide-react";
+import { Brain, Plus, Trash2 } from "lucide-react";
 
 type SkillRule = {
   id: string;
+  source_comment_id: string | null;
   domain: string | null;
   experiment_type: string | null;
   section: string | null;
@@ -43,7 +44,18 @@ function relativeDate(iso: string) {
   }
 }
 
-function RuleCard({ rule, index }: { rule: SkillRule; index: number }) {
+function RuleCard({
+  rule,
+  index,
+  onDelete,
+  deleting,
+}: {
+  rule: SkillRule;
+  index: number;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  const canDelete = Boolean(rule.source_comment_id);
   return (
     <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-5">
       <div className="flex items-start justify-between gap-3">
@@ -74,6 +86,17 @@ function RuleCard({ rule, index }: { rule: SkillRule; index: number }) {
           </div>
           <p className="mt-2 text-[13px] leading-relaxed text-slate-700">{rule.rule_text ?? "—"}</p>
         </div>
+
+        {canDelete && (
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            title="Remove from global memory (rule becomes inactive)"
+            className="inline-flex items-center justify-center h-8 w-8 rounded-lg ring-1 ring-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
       {rule.keywords && rule.keywords.length > 0 && (
         <div className="mt-3 pt-3 border-t border-[var(--line-2)] flex items-center justify-between gap-2">
@@ -97,6 +120,7 @@ export default function MemoryPage() {
   const [rules, setRules] = useState<SkillRule[]>([]);
   const [memoryMd, setMemoryMd] = useState<string>("");
   const [view, setView] = useState<"cards" | "markdown">("cards");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +128,7 @@ export default function MemoryPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/memory");
+        const res = await fetch("/api/memory", { cache: "no-store" });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error ?? "Failed");
         if (!cancelled) {
@@ -123,14 +147,35 @@ export default function MemoryPage() {
 
   const activeRules = rules.filter((r) => r.active);
 
+  async function deleteRule(id: string) {
+    const ok = window.confirm("Delete this global memory rule? (It will be deactivated, not erased.)");
+    if (!ok) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/skill-rules/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message ?? "Delete failed");
+      setRules((prev) => prev.filter((r) => r.id !== id));
+      try {
+        window.dispatchEvent(new CustomEvent("pf:memory-updated", { detail: { deleted_rule_id: id } }));
+      } catch {
+        // ignore
+      }
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="px-8 pt-6 pb-12 max-w-[1100px] mx-auto fade-in">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <SectionLabel>Skill memory</SectionLabel>
-          <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-slate-900">Expert feedback memory</h1>
+          <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-slate-900">Your reusable notes</h1>
           <p className="mt-1.5 text-[13.5px] text-slate-600">
-            Reusable rules distilled from scientist corrections — retrieval-based learning, no fine-tuning.
+            Short rules distilled from what you’ve saved on plans. New plans can reuse these automatically.
           </p>
         </div>
         <Link
@@ -191,14 +236,22 @@ export default function MemoryPage() {
         ) : activeRules.length === 0 ? (
           <div className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-8 text-center">
             <Brain size={24} className="text-slate-300 mx-auto mb-3" />
-            <div className="text-[15px] font-medium text-slate-700">No skill rules yet</div>
+            <div className="text-[15px] font-medium text-slate-700">No reusable notes yet</div>
             <div className="mt-1 text-[13px] text-slate-500">
-              Select text in any plan section and save a global comment to build skill memory.
+              In any plan, select text and save a comment as a global rule to build your memory.
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            {activeRules.map((rule, i) => <RuleCard key={rule.id} rule={rule} index={i} />)}
+            {activeRules.map((rule, i) => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                index={i}
+                deleting={deletingId === rule.id}
+                onDelete={() => deleteRule(rule.id)}
+              />
+            ))}
           </div>
         )
       ) : (

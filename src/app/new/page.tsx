@@ -523,8 +523,8 @@ export default function NewProjectPage() {
                       <Atom size={14} />
                     </div>
                     <div>
-                      <div className="text-[13px] font-semibold text-slate-900">Literature QC</div>
-                      <div className="text-[11.5px] text-slate-500">Quick evidence scan for novelty + risk signals.</div>
+                      <div className="text-[13px] font-semibold text-slate-900">Research scan</div>
+                      <div className="text-[11.5px] text-slate-500">Quick scan for novelty + close prior work.</div>
                     </div>
                   </div>
                   <button

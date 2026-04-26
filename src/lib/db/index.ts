@@ -577,6 +577,43 @@ export async function dbListSkillRules(limit = 200): Promise<SkillRule[]> {
   return store.skillRules.slice(0, limit);
 }
 
+export async function dbDeleteGlobalSkillRule(ruleId: UUID): Promise<{ ok: true }> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    // Load rule to find the source comment to unmark.
+    const { data: rule, error: ruleErr } = await supabase
+      .from("skill_rules")
+      .select("id,source_comment_id")
+      .eq("id", ruleId)
+      .maybeSingle();
+    if (ruleErr) throw new Error(ruleErr.message);
+    if (!rule) throw new Error("Skill rule not found");
+
+    // "Delete" = deactivate rule (keep history).
+    const { error: updErr } = await supabase.from("skill_rules").update({ active: false }).eq("id", ruleId);
+    if (updErr) throw new Error(updErr.message);
+
+    // Unmark the originating comment as global (if present).
+    if (rule.source_comment_id) {
+      const { error: cErr } = await supabase.from("comments").update({ is_global: false }).eq("id", rule.source_comment_id);
+      if (cErr) throw new Error(cErr.message);
+    }
+    return { ok: true };
+  }
+
+  const store = getMockStore();
+  const idx = store.skillRules.findIndex((r) => r.id === ruleId);
+  if (idx === -1) throw new Error("Skill rule not found");
+  const sourceCommentId = store.skillRules[idx].source_comment_id;
+  store.skillRules[idx] = { ...store.skillRules[idx], active: false };
+  if (sourceCommentId) {
+    const cIdx = store.comments.findIndex((c) => c.id === sourceCommentId);
+    if (cIdx !== -1) store.comments[cIdx] = { ...store.comments[cIdx], is_global: false };
+  }
+  saveMockStore();
+  return { ok: true };
+}
+
 export async function dbInsertClarificationAnswers(
   projectId: UUID,
   answers: Array<{ question_id: string; question_text: string; selected_answer: string }>

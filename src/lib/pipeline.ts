@@ -165,6 +165,11 @@ export async function generateFullPlanFromHypothesis(hypothesis: string): Promis
     hypothesis
   });
   const relevantRules = relevant.map((x) => x.rule);
+  const alwaysInclude = allRules
+    .filter((r: any) => r?.active && r?.source_comment_id) // learned global rules
+    .slice(0, 25);
+  const byId = new Set(relevantRules.map((r) => r.id));
+  const combinedRules = [...relevantRules, ...alwaysInclude.filter((r) => !byId.has(r.id))];
 
   // Step 4: Draft protocol + material extraction
   const step4Prompt = prompts.draftProtocolAndMaterials({
@@ -173,7 +178,7 @@ export async function generateFullPlanFromHypothesis(hypothesis: string): Promis
     noveltyJson: qc,
     references,
     clarifications: clarifications.map((c) => ({ question_text: c.question_text, selected_answer: c.selected_answer })),
-    relevantRules: relevantRules.map((r) => ({ id: r.id, section: r.section, rule_text: r.rule_text, keywords: r.keywords }))
+    relevantRules: combinedRules.map((r) => ({ id: r.id, section: r.section, rule_text: r.rule_text, keywords: r.keywords }))
   });
   const step4 = await generateJSON<DraftProtocolJson>({
     schemaName: "draft_protocol_materials",
@@ -304,6 +309,11 @@ export async function generatePlanForExistingProject(projectId: string): Promise
     hypothesis: project.original_hypothesis
   });
   const relevantRules = relevant.map((x) => x.rule);
+  const alwaysInclude = allRules
+    .filter((r: any) => r?.active && r?.source_comment_id)
+    .slice(0, 25);
+  const byId = new Set(relevantRules.map((r) => r.id));
+  const combinedRules = [...relevantRules, ...alwaysInclude.filter((r) => !byId.has(r.id))];
 
   // Step 4: draft + materials
   const step4Prompt = prompts.draftProtocolAndMaterials({
@@ -312,7 +322,7 @@ export async function generatePlanForExistingProject(projectId: string): Promise
     noveltyJson: qc,
     references,
     clarifications: clarifications.map((c) => ({ question_text: c.question_text, selected_answer: c.selected_answer })),
-    relevantRules: relevantRules.map((r) => ({ id: r.id, section: r.section, rule_text: r.rule_text, keywords: r.keywords }))
+    relevantRules: combinedRules.map((r) => ({ id: r.id, section: r.section, rule_text: r.rule_text, keywords: r.keywords }))
   });
   const step4 = await generateJSON<any>({
     schemaName: "draft_protocol_materials",
@@ -402,6 +412,11 @@ export async function regeneratePlanFromPlanSkills(planId: string): Promise<Orch
     hypothesis: project.original_hypothesis
   });
   const relevantRules = relevant.map((x) => x.rule);
+  const alwaysInclude = allRules
+    .filter((r: any) => r?.active && r?.source_comment_id)
+    .slice(0, 25);
+  const byId = new Set(relevantRules.map((r) => r.id));
+  const combinedRules = [...relevantRules, ...alwaysInclude.filter((r) => !byId.has(r.id))];
 
   const step4Prompt = prompts.draftProtocolAndMaterials({
     hypothesis: project.original_hypothesis,
@@ -409,7 +424,7 @@ export async function regeneratePlanFromPlanSkills(planId: string): Promise<Orch
     noveltyJson: qc,
     references,
     clarifications: clarifications.map((c) => ({ question_text: c.question_text, selected_answer: c.selected_answer })),
-    relevantRules: relevantRules.map((r) => ({ id: r.id, section: r.section, rule_text: r.rule_text, keywords: r.keywords })),
+    relevantRules: combinedRules.map((r) => ({ id: r.id, section: r.section, rule_text: r.rule_text, keywords: r.keywords })),
     planSkillMd: plan.skill_md
   });
 

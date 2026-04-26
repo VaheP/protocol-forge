@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Atom, Plus, Layers, Brain, Bell, Search, ChevronRight, FlaskConical } from "lucide-react";
+import { Atom, Plus, Layers, Brain, ChevronRight, FlaskConical } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 type Project = {
   id: string;
@@ -46,6 +47,8 @@ function SectionLabel({ children, className }: { children: React.ReactNode; clas
 
 function Sidebar({ pathname }: { pathname: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activeRuleCount, setActiveRuleCount] = useState<number | null>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     fetch("/api/projects")
@@ -53,6 +56,28 @@ function Sidebar({ pathname }: { pathname: string }) {
       .then((json) => { if (json.projects) setProjects(json.projects); })
       .catch(() => {});
   }, [pathname]); // refetch when navigating so sidebar stays fresh
+
+  useEffect(() => {
+    async function refreshCount() {
+      try {
+        const res = await fetch("/api/memory", { cache: "no-store" });
+        const json = await res.json();
+        const rules = Array.isArray(json.rules) ? json.rules : [];
+        setActiveRuleCount(rules.filter((x: any) => x?.active).length);
+      } catch {
+        // ignore
+      }
+    }
+
+    refreshCount();
+
+    function onMemoryUpdated() {
+      refreshCount();
+    }
+
+    window.addEventListener("pf:memory-updated", onMemoryUpdated as any);
+    return () => window.removeEventListener("pf:memory-updated", onMemoryUpdated as any);
+  }, [pathname]);
 
   function isActive(href: string, exact: boolean) {
     return exact ? pathname === href : pathname.startsWith(href);
@@ -151,10 +176,21 @@ function Sidebar({ pathname }: { pathname: string }) {
             <SectionLabel className="!text-violet-700">Skill memory</SectionLabel>
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-[20px] font-semibold tracking-tight text-violet-900">3</span>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={activeRuleCount == null ? "na" : String(activeRuleCount)}
+                initial={reduceMotion ? false : { y: -6, opacity: 0, filter: "blur(2px)", scale: 0.98 }}
+                animate={{ y: 0, opacity: 1, filter: "blur(0px)", scale: 1 }}
+                exit={reduceMotion ? undefined : { y: 6, opacity: 0, filter: "blur(2px)", scale: 0.98 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className="text-[20px] font-semibold tracking-tight text-violet-900 tabular-nums"
+              >
+                {activeRuleCount == null ? "—" : activeRuleCount}
+              </motion.span>
+            </AnimatePresence>
             <span className="text-[11px] text-violet-700/80">active rules</span>
           </div>
-          <div className="text-[11px] text-violet-700/80">applied in 7 plans</div>
+          <div className="text-[11px] text-violet-700/80">applied via retrieval in new plans</div>
         </Link>
       </div>
     </aside>
@@ -185,18 +221,6 @@ function Topbar({ pathname }: { pathname: string }) {
         ))}
       </div>
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-2 rounded-lg ring-1 ring-slate-200 bg-white pl-2.5 pr-1.5 h-9 w-[280px]">
-          <Search size={14} className="text-slate-400 shrink-0" />
-          <input
-            placeholder="Search hypotheses, rules, references…"
-            className="flex-1 outline-none bg-transparent text-sm placeholder:text-slate-400"
-          />
-          <span className="font-mono-design text-[10px] text-slate-400 ring-1 ring-slate-200 rounded px-1.5 py-0.5">⌘K</span>
-        </div>
-        <button className="inline-flex items-center justify-center h-8 w-8 rounded-lg ring-1 ring-slate-200 bg-white text-slate-600 hover:bg-slate-50 relative">
-          <Bell size={14} />
-          <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-[#2240b3] text-white text-[9px] flex items-center justify-center font-medium px-1">3</span>
-        </button>
         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-900 to-slate-700 grid place-items-center text-white text-[11px] font-medium ring-1 ring-slate-200">
           RK
         </div>

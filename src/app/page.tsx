@@ -38,7 +38,7 @@ const PILLARS = [
   },
   {
     icon: Brain, title: "Expert Memory", tone: "violet",
-    body: "Convert scientist text-level corrections into reusable skill rules. Future plans inherit them.",
+    body: "Turn your notes into reusable rules. New plans automatically reuse what you’ve taught ProtocolForge.",
   },
 ];
 
@@ -193,28 +193,6 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* KPI Strip */}
-      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Active rules", value: "3" },
-          { label: "Plans drafted", value: "12" },
-          { label: "Applied in plans", value: "7" },
-          { label: "Avg. plan confidence", value: "78%" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-2xl bg-white ring-1 ring-[var(--line)] soft-shadow p-5">
-            <Stat label={s.label} value={s.value} />
-            {s.label === "Avg. plan confidence" && (
-              <div className="mt-3"><ConfidenceBar value={78} /></div>
-            )}
-            {s.label !== "Avg. plan confidence" && (
-              <div className="mt-3">
-                <span className="text-[11px] text-slate-500">+{s.label === "Active rules" ? "1" : s.label === "Plans drafted" ? "3" : "2"} this week</span>
-              </div>
-            )}
-          </div>
-        ))}
       </div>
 
       {/* Capabilities */}

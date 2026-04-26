@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { dbListSkillRules } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function toMemoryMarkdown(rules: Array<{ id: string; domain: string | null; experiment_type: string | null; section: string | null; rule_text: string | null; active: boolean }>) {
   const active = rules.filter((r) => r.active);
   const lines: string[] = [];

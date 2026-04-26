@@ -67,7 +67,7 @@ export function PlanSection({ planId, sectionKey, title, children }: Props) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Save failed");
-      setSavedMsg(reusable ? "Skill memory updated." : "Comment saved.");
+      setSavedMsg(reusable ? "Saved for future plans." : "Saved.");
       setCommentText("");
     } catch (e: any) {
       setSavedMsg(e?.message ?? String(e));
@@ -81,7 +81,7 @@ export function PlanSection({ planId, sectionKey, title, children }: Props) {
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-semibold">{title}</div>
         <Button variant="outline" size="sm" onClick={() => setOpen(true)} disabled={!selectedText.trim()}>
-          Add expert comment
+          Add your note
         </Button>
       </div>
 
@@ -92,8 +92,8 @@ export function PlanSection({ planId, sectionKey, title, children }: Props) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Expert comment</DialogTitle>
-            <DialogDescription>Select text in the plan, then save a correction as reusable skill memory (no live fine-tuning).</DialogDescription>
+            <DialogTitle>Your note</DialogTitle>
+            <DialogDescription>Select text in the plan, then save a note you want to remember (no fine-tuning).</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
@@ -132,7 +132,7 @@ export function PlanSection({ planId, sectionKey, title, children }: Props) {
 
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={reusable} onChange={(e) => setReusable(e.target.checked)} />
-              Save as reusable skill
+              Save as a reusable rule
             </label>
           </div>
 
@@ -142,7 +142,7 @@ export function PlanSection({ planId, sectionKey, title, children }: Props) {
               Close
             </Button>
             <Button onClick={save} disabled={!canSave}>
-              {saving ? "Saving…" : reusable ? "Save for future plans" : "Save comment"}
+              {saving ? "Saving…" : reusable ? "Save for future plans" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
